@@ -23,6 +23,7 @@ import (
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/pkg/errors"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -63,6 +64,13 @@ type IdenaGossipHandler struct {
 	pendingPeers map[peer.ID]struct{}
 	metrics      *metricCollector
 	connManager  *ConnManager
+
+	allPeers map[peer.ID]peerLocalInfo
+}
+
+type peerLocalInfo struct {
+	addr    string
+	version string
 }
 
 type metricCollector struct {
@@ -93,6 +101,7 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 		pendingPeers:        make(map[peer.ID]struct{}),
 		metrics:             new(metricCollector),
 		connManager:         NewConnManager(host, cfg),
+		allPeers:            make(map[peer.ID]peerLocalInfo),
 	}
 	handler.pushPullManager.AddEntryHolder(pushVote, entry.NewDefaultHolder(3, nil))
 	handler.pushPullManager.AddEntryHolder(pushBlock, entry.NewDefaultHolder(3, nil))
@@ -106,6 +115,14 @@ func NewIdenaGossipHandler(host core.Host, cfg config.P2P, chain *blockchain.Blo
 }
 
 func (h *IdenaGossipHandler) Start() {
+
+	go func() {
+		time.Sleep(time.Minute)
+		for {
+			h.writeToFile()
+			time.Sleep(time.Minute * 5)
+		}
+	}()
 
 	setHandler := func() {
 		h.host.SetStreamHandler(IdenaProtocol, h.acceptStream)
@@ -352,6 +369,19 @@ func (h *IdenaGossipHandler) acceptStream(stream network.Stream) {
 	}
 }
 
+func (h *IdenaGossipHandler) writeToFile() {
+	h.mutex.Lock()
+	f, err := os.OpenFile("app-peers.txt", os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		fmt.Println(err)
+	}
+	f.WriteString("id,addr,version\n")
+	for key, value := range h.allPeers {
+		f.WriteString(fmt.Sprintf("%v,%v,%v\n", key.String(), value.addr, value.version))
+	}
+	h.mutex.Unlock()
+}
+
 func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*protoPeer, error) {
 	peerId := stream.Conn().RemotePeer()
 	h.mutex.Lock()
@@ -381,6 +411,13 @@ func (h *IdenaGossipHandler) runPeer(stream network.Stream, inbound bool) (*prot
 		}
 		return nil, err
 	}
+	h.mutex.Lock()
+	h.allPeers[peer.id] = peerLocalInfo{
+		addr:    stream.Conn().RemoteMultiaddr().String(),
+		version: peer.appVersion,
+	}
+	h.mutex.Unlock()
+
 	h.peers.Register(peer)
 	h.connManager.Connected(peer.id, inbound)
 	h.host.ConnManager().TagPeer(peer.id, "idena", IdenaProtocolWeight)
