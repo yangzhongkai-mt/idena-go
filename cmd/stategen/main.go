@@ -2,6 +2,8 @@ package main
 
 import (
 	"github.com/go-bindata/go-bindata/v3"
+	"github.com/golang/protobuf/proto"
+	"github.com/idena-network/idena-go/cmd/stategen/models"
 	"github.com/idena-network/idena-go/common"
 	"github.com/idena-network/idena-go/common/eventbus"
 	"github.com/idena-network/idena-go/config"
@@ -12,6 +14,8 @@ import (
 	"github.com/idena-network/idena-go/rlp"
 	"github.com/pkg/errors"
 	"github.com/urfave/cli"
+	math2 "math"
+	"math/big"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -57,27 +61,29 @@ func main() {
 		appState := appstate.NewAppState(db, eventbus.New())
 		appState.Initialize(head.Height())
 
-		snapshot := state.PredefinedState{}
-		snapshot.Block = head.Height()
-		snapshot.Seed = head.Seed()
+		snapshot := &models.ProtoPredefinedState{
+			Block: head.Height() + 1,
+			Seed:  head.Seed().Bytes(),
+		}
 
 		globalObject := appState.State.GetOrNewGlobalObject()
 
-		snapshot.Global = state.StateGlobal{
-			LastSnapshot:         globalObject.LastSnapshot(),
-			NextValidationTime:   globalObject.NextValidationTime(),
-			GodAddress:           globalObject.GodAddress(),
-			WordsSeed:            globalObject.FlipWordsSeed(),
-			ValidationPeriod:     globalObject.ValidationPeriod(),
-			Epoch:                globalObject.Epoch(),
-			EpochBlock:           globalObject.EpochBlock(),
-			FeePerByte:           globalObject.FeePerByte(),
-			VrfProposerThreshold: globalObject.VrfProposerThresholdRaw(),
-			EmptyBlocksBits:      globalObject.EmptyBlocksBits(),
-			GodAddressInvites:    globalObject.GodAddressInvites(),
+		snapshot.Global = &models.ProtoPredefinedState_Global{
+			LastSnapshot:                  globalObject.LastSnapshot(),
+			NextValidationTime:            globalObject.NextValidationTime().Int64(),
+			GodAddress:                    globalObject.GodAddress().Bytes(),
+			WordsSeed:                     globalObject.FlipWordsSeed().Bytes(),
+			ValidationPeriod:              uint32(globalObject.ValidationPeriod()),
+			Epoch:                         uint32(globalObject.Epoch()),
+			EpochBlock:                    globalObject.EpochBlock(),
+			FeePerByte:                    BigIntBytesOrNil(globalObject.FeePerByte()),
+			VrfProposerThreshold:          math2.Float64bits(0.5), //globalObject.VrfProposerThresholdRaw(),
+			EmptyBlocksBits:               BigIntBytesOrNil(globalObject.EmptyBlocksBits()),
+			GodAddressInvites:             uint32(globalObject.GodAddressInvites()),
+			BlocksCntWithoutCeremonialTxs: 0,
 		}
 
-		snapshot.StatusSwitch = state.StateStatusSwitch{
+		snapshot.StatusSwitch = &models.ProtoPredefinedState_StatusSwitch{
 			Addresses: nil,
 		}
 
@@ -93,10 +99,10 @@ func main() {
 				return false
 			}
 
-			snapshot.Accounts = append(snapshot.Accounts, &state.StateAccount{
-				Address: addr,
-				Balance: data.Balance,
-				Epoch:   data.Epoch,
+			snapshot.Accounts = append(snapshot.Accounts, &models.ProtoPredefinedState_Account{
+				Address: addr.Bytes(),
+				Balance: BigIntBytesOrNil(data.Balance),
+				Epoch:   uint32(data.Epoch),
 				Nonce:   data.Nonce,
 			})
 			return false
@@ -115,34 +121,47 @@ func main() {
 				return false
 			}
 
-			var flips []state.StateIdentityFlip
+			var flips []*models.ProtoPredefinedState_Identity_Flip
 			for _, f := range data.Flips {
-				flips = append(flips, state.StateIdentityFlip{
+				flips = append(flips, &models.ProtoPredefinedState_Identity_Flip{
 					Cid:  f.Cid,
-					Pair: f.Pair,
+					Pair: uint32(f.Pair),
 				})
 			}
 
-			snapshot.Identities = append(snapshot.Identities, &state.StateIdentity{
-				Address:              addr,
-				State:                data.State,
-				Birthday:             data.Birthday,
-				Code:                 data.Code,
-				Generation:           data.Generation,
-				Invites:              data.Invites,
-				ProfileHash:          data.ProfileHash,
-				PubKey:               data.PubKey,
-				QualifiedFlips:       data.QualifiedFlips,
-				RequiredFlips:        data.RequiredFlips,
-				ShortFlipPoints:      data.ShortFlipPoints,
-				Stake:                data.Stake,
-				Flips:                flips,
-				Invitees:             data.Invitees,
-				Inviter:              data.Inviter,
-				Penalty:              data.Penalty,
-				ValidationTxsBits:    data.ValidationTxsBits,
-				LastValidationStatus: data.LastValidationStatus,
-			})
+			identity := &models.ProtoPredefinedState_Identity{
+				Address:          addr.Bytes(),
+				State:            uint32(data.State),
+				Birthday:         uint32(data.Birthday),
+				Code:             data.Code,
+				Generation:       data.Generation,
+				Invites:          uint32(data.Invites),
+				ProfileHash:      data.ProfileHash,
+				PubKey:           data.PubKey,
+				QualifiedFlips:   data.QualifiedFlips,
+				RequiredFlips:    uint32(data.RequiredFlips),
+				ShortFlipPoints:  data.ShortFlipPoints,
+				Stake:            BigIntBytesOrNil(data.Stake),
+				Flips:            flips,
+				Penalty:          BigIntBytesOrNil(data.Penalty),
+				ValidationBits:   uint32(data.ValidationTxsBits),
+				ValidationStatus: uint32(data.LastValidationStatus),
+			}
+
+			if data.Inviter != nil {
+				identity.Inviter = &models.ProtoPredefinedState_Identity_TxAddr{
+					Hash:    data.Inviter.TxHash[:],
+					Address: data.Inviter.Address[:],
+				}
+			}
+			for idx := range data.Invitees {
+				identity.Invitees = append(identity.Invitees, &models.ProtoPredefinedState_Identity_TxAddr{
+					Hash:    data.Invitees[idx].TxHash[:],
+					Address: data.Invitees[idx].Address[:],
+				})
+			}
+
+			snapshot.Identities = append(snapshot.Identities, identity)
 			return false
 		})
 
@@ -158,20 +177,26 @@ func main() {
 				log.Error(err.Error())
 				return false
 			}
-			snapshot.ApprovedIdentities = append(snapshot.ApprovedIdentities, &state.StateApprovedIdentity{
-				Address:  addr,
+			snapshot.ApprovedIdentities = append(snapshot.ApprovedIdentities, &models.ProtoPredefinedState_ApprovedIdentity{
+				Address:  addr[:],
 				Approved: data.Approved,
 				Online:   false,
 			})
 			return false
 		})
 
+		data, err := proto.Marshal(snapshot)
+		if err != nil {
+			return err
+		}
+
 		file, err := os.Create("stategen.out")
 		if err != nil {
 			return err
 		}
 
-		if err := rlp.Encode(file, snapshot); err != nil {
+		_, err = file.Write(data)
+		if err != nil {
 			return err
 		}
 		file.Close()
@@ -201,4 +226,11 @@ func OpenDatabase(datadir string, name string, cache int, handles int) (db.DB, e
 		WriteBuffer:            cache / 4 * opt.MiB,
 		Filter:                 filter.NewBloomFilter(10),
 	})
+}
+
+func BigIntBytesOrNil(a *big.Int) []byte {
+	if a == nil {
+		return nil
+	}
+	return a.Bytes()
 }
