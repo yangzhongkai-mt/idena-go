@@ -836,7 +836,10 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 
 		// verify identity and add transfer all available funds from temp account
 		recipient := *tx.To
-		stateDB.SetState(recipient, state.Candidate)
+		stateDB.SetState(recipient, state.Newbie)
+		appState.State.SetRequiredFlips(recipient, 3)
+		appState.IdentityState.Add(recipient)
+
 		stateDB.AddBalance(recipient, change)
 		stateDB.SetPubKey(recipient, tx.Payload)
 		stateDB.SetGeneticCode(recipient, generation, code)
@@ -1210,7 +1213,7 @@ func (chain *Blockchain) calculateFlags(appState *appstate.AppState, block *type
 	var flags types.BlockFlag
 
 	for _, tx := range block.Body.Transactions {
-		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx {
+		if tx.Type == types.KillTx || tx.Type == types.KillInviteeTx || tx.Type == types.ActivationTx {
 			flags |= types.IdentityUpdate
 		}
 	}
