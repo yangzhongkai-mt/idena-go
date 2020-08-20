@@ -781,7 +781,7 @@ func (api *DnaApi) buildTerminateContractTx(args TerminateContractArgs) (*types.
 
 func (api *DnaApi) EstimateDeployContract(args DeployContractArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildDeployContractTx(args)
 	if err != nil {
 		return nil, err
@@ -796,7 +796,7 @@ func (api *DnaApi) EstimateDeployContract(args DeployContractArgs) (*TxReceipt, 
 
 func (api *DnaApi) EstimateCallContract(args CallContractArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildCallContractTx(args)
 	if err != nil {
 		return nil, err
@@ -811,7 +811,7 @@ func (api *DnaApi) EstimateCallContract(args CallContractArgs) (*TxReceipt, erro
 
 func (api *DnaApi) EstimateTerminateContract(args TerminateContractArgs) (*TxReceipt, error) {
 	appState := api.baseApi.getAppState()
-	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(appState, api.bc.Head, api.baseApi.secStore, nil)
 	tx, err := api.buildTerminateContractTx(args)
 	if err != nil {
 		return nil, err
@@ -877,7 +877,7 @@ func (api *DnaApi) ReadContractData(contract common.Address, key string, format 
 }
 
 func (api *DnaApi) ReadonlyCallContract(args ReadonlyCallContractArgs) (interface{}, error) {
-	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore)
+	vm := vm.NewVmImpl(api.baseApi.getAppState(), api.bc.Head, api.baseApi.secStore, nil)
 	data, err := vm.Read(args.Contract, args.Method, args.Args.ToSlice()...)
 	if err != nil {
 		return nil, err
