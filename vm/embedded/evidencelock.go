@@ -2,6 +2,7 @@ package embedded
 
 import (
 	"github.com/idena-network/idena-go/common"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -11,10 +12,11 @@ type EvidenceLock struct {
 	*BaseContract
 }
 
-func NewEvidenceLock(ctx env.CallContext, e env.Env) *EvidenceLock {
+func NewEvidenceLock(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *EvidenceLock {
 	return &EvidenceLock{&BaseContract{
-		ctx: ctx,
-		env: e,
+		ctx:            ctx,
+		env:            e,
+		statsCollector: statsCollector,
 	}}
 }
 

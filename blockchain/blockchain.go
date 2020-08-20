@@ -758,7 +758,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 	totalTips = new(big.Int)
 	minFeePerByte := fee.GetFeePerGasForNetwork(appState.ValidatorsCache.NetworkSize())
 
-	vm := vm.NewVmImpl(appState, block.Header, chain.secStore)
+	vm := vm.NewVmImpl(appState, block.Header, chain.secStore, statsCollector)
 
 	for i := 0; i < len(block.Body.Transactions); i++ {
 		tx := block.Body.Transactions[i]
@@ -782,7 +782,7 @@ func (chain *Blockchain) processTxs(appState *appstate.AppState, block *types.Bl
 func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, tx *types.Transaction, statsCollector collector.StatsCollector) (*big.Int, *types.TxReceipt, error) {
 
 	collector.BeginApplyingTx(statsCollector, tx, appState)
-	defer collector.CompleteApplyingTx(statsCollector, tx, appState)
+	defer collector.CompleteApplyingTx(statsCollector, appState)
 
 	collector.BeginTxBalanceUpdate(statsCollector, tx, appState)
 	defer collector.CompleteBalanceUpdate(statsCollector, appState)
@@ -932,6 +932,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 				stateDB.AddBalance(receipt.ContractAddress, amount)
 			}
 		}
+		collector.AddTxReceipt(statsCollector, receipt)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)
@@ -939,7 +940,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 	if senderAccount.Epoch() != tx.Epoch {
 		stateDB.SetEpoch(sender, tx.Epoch)
 	}
-	collector.AddTxFee(statsCollector, tx, fee)
+	collector.AddTxFee(statsCollector, fee)
 	collector.AddFeeBurntCoins(statsCollector, sender, fee, chain.config.Consensus.FeeBurnRate, tx)
 
 	return fee, receipt, nil
@@ -1215,7 +1216,7 @@ func (chain *Blockchain) filterTxs(appState *appstate.AppState, txs []*types.Tra
 
 	totalFee := new(big.Int)
 	totalTips := new(big.Int)
-	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore)
+	vm := vm.NewVmImpl(appState, &types.Header{ProposedHeader: header}, chain.secStore, nil)
 	var receipts []*types.TxReceipt
 	for _, tx := range txs {
 		if err := validation.ValidateTx(appState, tx, minFeePerByte, validation.InBlockTx); err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/idena-network/idena-go/common/math"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/crypto/vrf/p256"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/idena-network/idena-go/vm/env"
 	"github.com/idena-network/idena-go/vm/helpers"
 	"github.com/pkg/errors"
@@ -34,11 +35,12 @@ type FactEvidence struct {
 	voteOptions *env.Map
 }
 
-func NewFactEvidenceContract(ctx env.CallContext, e env.Env) *FactEvidence {
+func NewFactEvidenceContract(ctx env.CallContext, e env.Env, statsCollector collector.StatsCollector) *FactEvidence {
 	return &FactEvidence{
 		&BaseContract{
-			ctx: ctx,
-			env: e,
+			ctx:            ctx,
+			env:            e,
+			statsCollector: statsCollector,
 		},
 		env.NewMap([]byte("voteHashes"), e, ctx),
 		env.NewMap([]byte("votes"), e, ctx),
@@ -169,6 +171,8 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 	f.SetUint64("quorum", quorum)
 	f.SetUint64("committeeSize", committeeSize)
 	f.SetUint64("maxOptions", maxOptions)
+
+	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr())
 	return nil
 }
 
