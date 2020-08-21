@@ -180,7 +180,8 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 	f.SetUint64("committeeSize", committeeSize)
 	f.SetUint64("maxOptions", maxOptions)
 
-	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr())
+	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime)
+
 	return nil
 }
 
@@ -201,7 +202,8 @@ func (f *OracleVoting) startVoting() error {
 		return errors.New("insufficient funds")
 	}
 	f.SetUint64("state", 1)
-	f.SetUint64("startBlock", f.env.BlockNumber())
+	startBlock := f.env.BlockNumber()
+	f.SetUint64("startBlock", startBlock)
 
 	if f.GetBigInt("votingMinPayment") == nil {
 		payment := decimal.NewFromBigInt(balance, 0)
@@ -210,6 +212,10 @@ func (f *OracleVoting) startVoting() error {
 	}
 	f.SetArray("vrfSeed", f.env.BlockSeed())
 	f.SetUint16("epoch", f.env.Epoch())
+
+	// todo epoch ?
+	collector.AddFactEvidenceContractCallStart(f.statsCollector, f.ctx.ContractAddr(), startBlock)
+
 	return nil
 }
 
