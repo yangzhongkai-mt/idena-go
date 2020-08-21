@@ -172,7 +172,8 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 	f.SetUint64("committeeSize", committeeSize)
 	f.SetUint64("maxOptions", maxOptions)
 
-	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr())
+	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime)
+
 	return nil
 }
 
@@ -193,7 +194,8 @@ func (f *FactEvidence) startVoting() error {
 		return errors.New("insufficient funds")
 	}
 	f.SetUint64("state", 1)
-	f.SetUint64("startBlock", f.env.BlockNumber())
+	startBlock := f.env.BlockNumber()
+	f.SetUint64("startBlock", startBlock)
 
 	if f.GetBigInt("votingMinPayment") == nil {
 		payment := decimal.NewFromBigInt(balance, 0)
@@ -201,6 +203,9 @@ func (f *FactEvidence) startVoting() error {
 		f.SetBigInt("votingMinPayment", math.ToInt(payment))
 	}
 	f.SetArray("vrfSeed", f.env.BlockSeed())
+
+	collector.AddFactEvidenceContractCallStart(f.statsCollector, f.ctx.ContractAddr(), startBlock)
+
 	return nil
 }
 
