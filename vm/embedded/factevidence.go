@@ -135,6 +135,8 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 	quorum := uint64(20)
 	committeeSize := math.Min(100, uint64(f.env.NetworkSize()))
 	maxOptions := uint64(2)
+	var votingMinPayment *big.Int
+	state := uint64(0)
 
 	if value, err := helpers.ExtractUInt64(2, args...); err == nil {
 		votingDuration = value
@@ -158,21 +160,25 @@ func (f *FactEvidence) Deploy(args ...[]byte) error {
 	}
 
 	if value, err := helpers.ExtractBigInt(8, args...); err == nil {
-		f.SetBigInt("votingMinPayment", value)
+		votingMinPayment = value
 	}
 
 	f.SetOwner(f.ctx.Sender())
 	f.SetUint64("startTime", startTime)
 	f.SetArray("fact", cid)
-	f.SetUint64("state", 0)
+	f.SetUint64("state", state)
 	f.SetUint64("votingDuration", votingDuration)
 	f.SetUint64("publicVotingDuration", publicVotingDuration)
 	f.SetUint64("winnerThreshold", winnerThreshold)
 	f.SetUint64("quorum", quorum)
 	f.SetUint64("committeeSize", committeeSize)
 	f.SetUint64("maxOptions", maxOptions)
+	if votingMinPayment != nil {
+		f.SetBigInt("votingMinPayment", votingMinPayment)
+	}
 
-	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime)
+	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, cid,
+		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 
 	return nil
 }
