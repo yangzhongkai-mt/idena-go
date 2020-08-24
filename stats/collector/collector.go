@@ -63,6 +63,17 @@ type StatsCollector interface {
 	CompleteBalanceUpdate(appState *appstate.AppState)
 
 	SetCommitteeRewardShare(amount *big.Int)
+
+	BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState)
+	CompleteApplyingTx(appState *appstate.AppState)
+	AddTxFee(feeAmount *big.Int)
+
+	AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64, votingMinPayment *big.Int,
+		fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize,
+		maxOptions uint64)
+	AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64)
+
+	AddTxReceipt(txReceipt *types.TxReceipt)
 }
 
 type collectorStub struct {
@@ -535,4 +546,75 @@ func SetCommitteeRewardShare(c StatsCollector, amount *big.Int) {
 		return
 	}
 	c.SetCommitteeRewardShare(amount)
+}
+
+func (c *collectorStub) BeginApplyingTx(tx *types.Transaction, appState *appstate.AppState) {
+	// do nothing
+}
+
+func BeginApplyingTx(c StatsCollector, tx *types.Transaction, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.BeginApplyingTx(tx, appState)
+}
+
+func (c *collectorStub) CompleteApplyingTx(appState *appstate.AppState) {
+	// do nothing
+}
+
+func CompleteApplyingTx(c StatsCollector, appState *appstate.AppState) {
+	if c == nil {
+		return
+	}
+	c.CompleteApplyingTx(appState)
+}
+
+func (c *collectorStub) AddTxFee(feeAmount *big.Int) {
+	// do nothing
+}
+
+func AddTxFee(c StatsCollector, feeAmount *big.Int) {
+	if c == nil {
+		return
+	}
+	c.AddTxFee(feeAmount)
+}
+
+func (c *collectorStub) AddFactEvidenceContractDeploy(contractAddress common.Address, startTime uint64,
+	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
+	committeeSize, maxOptions uint64) {
+	// do nothing
+}
+
+func AddFactEvidenceContractDeploy(c StatsCollector, contractAddress common.Address, startTime uint64,
+	votingMinPayment *big.Int, fact []byte, state, votingDuration, publicVotingDuration, winnerThreshold, quorum,
+	committeeSize, maxOptions uint64) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceContractDeploy(contractAddress, startTime, votingMinPayment, fact, state, votingDuration,
+		publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
+}
+
+func (c *collectorStub) AddFactEvidenceContractCallStart(contractAddress common.Address, startBlock uint64) {
+	// do nothing
+}
+
+func AddFactEvidenceContractCallStart(c StatsCollector, contractAddress common.Address, startBlock uint64) {
+	if c == nil {
+		return
+	}
+	c.AddFactEvidenceContractCallStart(contractAddress, startBlock)
+}
+
+func (c *collectorStub) AddTxReceipt(txReceipt *types.TxReceipt) {
+	// do nothing
+}
+
+func AddTxReceipt(c StatsCollector, txReceipt *types.TxReceipt) {
+	if c == nil {
+		return
+	}
+	c.AddTxReceipt(txReceipt)
 }
