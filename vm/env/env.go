@@ -8,6 +8,7 @@ import (
 	"github.com/idena-network/idena-go/core/state"
 	"github.com/idena-network/idena-go/crypto"
 	"github.com/idena-network/idena-go/secstore"
+	"github.com/idena-network/idena-go/stats/collector"
 	"github.com/pkg/errors"
 	"math/big"
 	"regexp"
@@ -57,10 +58,11 @@ type contractValue struct {
 }
 
 type EnvImp struct {
-	state      *appstate.AppState
-	block      *types.Header
-	gasCounter *GasCounter
-	secStore   *secstore.SecStore
+	state          *appstate.AppState
+	block          *types.Header
+	gasCounter     *GasCounter
+	secStore       *secstore.SecStore
+	statsCollector collector.StatsCollector
 
 	contractStoreCache    map[common.Address]map[string]*contractValue
 	balancesCache         map[common.Address]*big.Int
@@ -69,13 +71,14 @@ type EnvImp struct {
 	events                []*types.TxEvent
 }
 
-func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore) *EnvImp {
+func NewEnvImp(s *appstate.AppState, block *types.Header, gasCounter *GasCounter, secStore *secstore.SecStore, statsCollector collector.StatsCollector) *EnvImp {
 	return &EnvImp{state: s, block: block, gasCounter: gasCounter, secStore: secStore,
 		contractStoreCache:    map[common.Address]map[string]*contractValue{},
 		balancesCache:         map[common.Address]*big.Int{},
 		deployedContractCache: map[common.Address]*state.ContractData{},
 		droppedContracts:      map[common.Address]struct{}{},
 		events:                []*types.TxEvent{},
+		statsCollector:        statsCollector,
 	}
 }
 
@@ -102,6 +105,7 @@ func (e *EnvImp) subBalance(address common.Address, amount *big.Int) {
 }
 
 func (e *EnvImp) setBalance(address common.Address, amount *big.Int) {
+	collector.AddContractBalanceUpdate(e.statsCollector, address, e.getBalance, amount, e.state)
 	e.balancesCache[address] = amount
 }
 
@@ -121,10 +125,13 @@ func (e *EnvImp) Send(ctx CallContext, dest common.Address, amount *big.Int) err
 }
 
 func (e *EnvImp) Deploy(ctx CallContext, codeHash common.Hash) {
-	e.deployedContractCache[ctx.ContractAddr()] = &state.ContractData{
-		Stake:    ctx.PayAmount(),
+	contractAddr := ctx.ContractAddr()
+	stake := ctx.PayAmount()
+	e.deployedContractCache[contractAddr] = &state.ContractData{
+		Stake:    stake,
 		CodeHash: codeHash,
 	}
+	collector.AddContractStake(e.statsCollector, stake)
 	e.gasCounter.AddGas(200)
 }
 
@@ -231,7 +238,9 @@ func (e *EnvImp) Iterate(ctx CallContext, minKey []byte, maxKey []byte, f func(k
 
 func (e *EnvImp) BurnAll(ctx CallContext) {
 	e.gasCounter.AddReadBytesAsGas(10)
-	e.setBalance(ctx.ContractAddr(), common.Big0)
+	address := ctx.ContractAddr()
+	collector.AddContractBurntCoins(e.statsCollector, address, e.getBalance)
+	e.setBalance(address, common.Big0)
 }
 
 func (e *EnvImp) ReadContractData(contractAddr common.Address, key []byte) []byte {

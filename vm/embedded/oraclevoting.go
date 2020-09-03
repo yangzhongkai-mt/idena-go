@@ -185,7 +185,7 @@ func (f *OracleVoting) Deploy(args ...[]byte) error {
 		f.SetBigInt("votingMinPayment", votingMinPayment)
 	}
 
-	collector.AddFactEvidenceContractDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, cid,
+	collector.AddFactEvidenceDeploy(f.statsCollector, f.ctx.ContractAddr(), startTime, votingMinPayment, cid,
 		state, votingDuration, publicVotingDuration, winnerThreshold, quorum, committeeSize, maxOptions)
 
 	return nil
@@ -207,20 +207,24 @@ func (f *OracleVoting) startVoting() error {
 	if balance.Cmp(minBalance) < 0 {
 		return errors.New("insufficient funds")
 	}
-	f.SetUint64("state", 1)
+	state := uint64(1)
+	f.SetUint64("state", state)
 	startBlock := f.env.BlockNumber()
 	f.SetUint64("startBlock", startBlock)
 
+	var votingMinPayment *big.Int
 	if f.GetBigInt("votingMinPayment") == nil {
 		payment := decimal.NewFromBigInt(balance, 0)
 		payment = payment.Div(decimal.New(20, 0))
-		f.SetBigInt("votingMinPayment", math.ToInt(payment))
+		votingMinPayment = math.ToInt(payment)
+		f.SetBigInt("votingMinPayment", votingMinPayment)
 	}
-	f.SetArray("vrfSeed", f.env.BlockSeed())
+	vrfSeed := f.env.BlockSeed()
+	f.SetArray("vrfSeed", vrfSeed)
 	f.SetUint16("epoch", f.env.Epoch())
 
 	// todo epoch ?
-	collector.AddFactEvidenceContractCallStart(f.statsCollector, f.ctx.ContractAddr(), startBlock)
+	collector.AddFactEvidenceCallStart(f.statsCollector, state, startBlock, votingMinPayment, vrfSeed)
 
 	return nil
 }
@@ -267,6 +271,9 @@ func (f *OracleVoting) sendVoteProof(args ...[]byte) error {
 		return errors.New("invalid proof")
 	}
 	f.voteHashes.Set(f.ctx.Sender().Bytes(), voteHash)
+
+	collector.AddFactEvidenceCallVoteProof(f.statsCollector, voteHash, proof)
+
 	return nil
 }
 
@@ -309,6 +316,8 @@ func (f *OracleVoting) sendVote(args ...[]byte) error {
 	c := f.GetUint64("votedCount") + 1
 	f.SetUint64("votedCount", c)
 
+	collector.AddFactEvidenceCallVote(f.statsCollector, vote, salt)
+
 	return nil
 }
 
@@ -341,11 +350,12 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 
 	if winnerVotesCnt >= committeeSize*winnerThreshold/100 ||
 		duration >= votingDuration+publicVotingDuration && votedCount >= committeeSize*quorum/100 {
-
+		state := uint64(2)
 		f.SetUint64("state", 2)
 		var result *byte
 		var reward *big.Int
-		fund := decimal.NewFromBigInt(f.env.Balance(f.ctx.ContractAddr()), 0)
+		fundInt := f.env.Balance(f.ctx.ContractAddr())
+		fund := decimal.NewFromBigInt(fundInt, 0)
 		if winnerVotesCnt >= votedCount*winnerThreshold/100 {
 			result = &winner
 			reward = math.ToInt(fund.Div(decimal.NewFromInt(int64(winnerVotesCnt))))
@@ -369,6 +379,7 @@ func (f *OracleVoting) finishVoting(args ...[]byte) error {
 		if result != nil {
 			f.SetByte("result", *result)
 		}
+		collector.AddFactEvidenceCallFinish(f.statsCollector, state, result, fundInt, reward)
 		return nil
 	}
 	return errors.New("no quorum")
@@ -403,8 +414,11 @@ func (f *OracleVoting) prolongVoting(args ...[]byte) error {
 	if f.env.Epoch() != f.GetUint16("epoch") || winnerVotesCnt < committeeSize*winnerThreshold/100 &&
 		votedCount < committeeSize*quorum/100 &&
 		duration >= votingDuration+publicVotingDuration {
-		f.SetArray("vrfSeed", f.env.BlockSeed())
-		f.SetUint64("startBlock", f.env.BlockNumber())
+		startBlock := f.env.BlockNumber()
+		vrfSeed := f.env.BlockSeed()
+		f.SetArray("vrfSeed", vrfSeed)
+		f.SetUint64("startBlock", startBlock)
+		collector.AddFactEvidenceCallProlongation(f.statsCollector, startBlock, vrfSeed)
 		return nil
 	}
 	return errors.New("voting can not be prolonged")
@@ -423,7 +437,9 @@ func (f *OracleVoting) terminate(args ...[]byte) error {
 		if err := f.env.Send(f.ctx, f.ctx.Sender(), balance); err != nil {
 			return err
 		}
-		f.SetUint64("state", 2)
+		state := uint64(2)
+		f.SetUint64("state", state)
+		collector.AddFactEvidenceCallTermination(f.statsCollector, state, balance)
 		return nil
 	}
 	return errors.New("voting can not be terminated")
@@ -454,5 +470,7 @@ func (f *OracleVoting) Terminate(args ...[]byte) error {
 		return err
 	}
 	f.env.Terminate(f.ctx, dest)
+
+	collector.AddFactEvidenceTermination(f.statsCollector, dest)
 	return nil
 }
