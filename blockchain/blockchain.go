@@ -965,7 +965,7 @@ func (chain *Blockchain) ApplyTxOnState(appState *appstate.AppState, vm vm.VM, t
 				stateDB.AddBalance(receipt.ContractAddress, amount)
 			}
 		}
-		collector.AddTxReceipt(statsCollector, receipt)
+		collector.AddTxReceipt(statsCollector, receipt, appState)
 	}
 
 	stateDB.SetNonce(sender, tx.AccountNonce)

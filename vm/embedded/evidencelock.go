@@ -21,31 +21,33 @@ func NewEvidenceLock(ctx env.CallContext, e env.Env, statsCollector collector.St
 }
 
 func (e *EvidenceLock) Deploy(args ...[]byte) error {
-	if factEvidenceAddr, err := helpers.ExtractAddr(0, args...); err != nil {
+	factEvidenceAddr, err := helpers.ExtractAddr(0, args...)
+	if err != nil {
 		return err
-	} else {
-		e.SetArray("factEvidenceAddr", factEvidenceAddr.Bytes())
 	}
-	if value, err := helpers.ExtractByte(1, args...); err != nil {
-		return err
-	} else {
-		e.SetByte("value", value)
-	}
+	e.SetArray("factEvidenceAddr", factEvidenceAddr.Bytes())
 
-	if successAddr, err := helpers.ExtractAddr(2, args...); err != nil {
+	value, err := helpers.ExtractByte(1, args...)
+	if err != nil {
 		return err
-	} else {
-		e.SetArray("successAddr", successAddr.Bytes())
 	}
+	e.SetByte("value", value)
 
-	if failAddr, err := helpers.ExtractAddr(3, args...); err != nil {
+	successAddr, err := helpers.ExtractAddr(2, args...)
+	if err != nil {
 		return err
-	} else {
-		e.SetArray("failAddr", failAddr.Bytes())
 	}
+	e.SetArray("successAddr", successAddr.Bytes())
+
+	failAddr, err := helpers.ExtractAddr(3, args...)
+	if err != nil {
+		return err
+	}
+	e.SetArray("failAddr", failAddr.Bytes())
 
 	e.BaseContract.Deploy(EvidenceLockContract)
 	e.SetOwner(e.ctx.Sender())
+	collector.AddEvidenceLockDeploy(e.statsCollector, e.ctx.ContractAddr(), factEvidenceAddr, value, successAddr, failAddr)
 	return nil
 }
 
@@ -73,15 +75,17 @@ func (e *EvidenceLock) push(args ...[]byte) error {
 	expected := e.GetByte("value")
 
 	votedValue, err := helpers.ExtractByte(0, e.env.ReadContractData(factEvidenceAddr, []byte("result")))
+	amount := e.env.Balance(e.ctx.ContractAddr())
 	if err != nil || expected != votedValue {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("failAddr"))
-		e.env.Send(e.ctx, dest, e.env.Balance(e.ctx.ContractAddr()))
+		e.env.Send(e.ctx, dest, amount)
 	} else {
 		var dest common.Address
 		dest.SetBytes(e.GetArray("successAddr"))
-		e.env.Send(e.ctx, dest, e.env.Balance(e.ctx.ContractAddr()))
+		e.env.Send(e.ctx, dest, amount)
 	}
+	collector.AddEvidenceLockCallPush(e.statsCollector, votedValue, amount)
 	return nil
 }
 
@@ -98,5 +102,6 @@ func (e *EvidenceLock) Terminate(args ...[]byte) error {
 		return err
 	}
 	e.env.Terminate(e.ctx, dest)
+	collector.AddOracleVotingTermination(e.statsCollector, dest)
 	return nil
 }
