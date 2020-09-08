@@ -1168,7 +1168,7 @@ func (chain *Blockchain) ProposeBlock(proof []byte) *types.BlockProposal {
 
 	block.Header.ProposedHeader.Flags |= chain.calculateFlags(checkState, block)
 
-	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, nil, nil)
+	block.Header.ProposedHeader.Root, block.Header.ProposedHeader.IdentityRoot, _ = chain.applyBlockOnState(checkState, block, chain.Head, totalFee, totalTips, receipts, nil)
 
 	proposal := &types.BlockProposal{Block: block, Proof: proof}
 	hash := crypto.SignatureHash(proposal)
@@ -1426,7 +1426,7 @@ func (chain *Blockchain) validateBlock(checkState *appstate.AppState, block *typ
 		return errors.Errorf("flags are invalid, expected=%v, actual=%v", expected, persistentFlags)
 	}
 
-	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, nil, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
+	if root, identityRoot, _ := chain.applyBlockOnState(checkState, block, prevBlock, totalFee, totalTips, receipts, nil); root != block.Root() || identityRoot != block.IdentityRoot() {
 		return errors.Errorf("invalid block roots. Expected=%x & %x, actual=%x & %x", root, identityRoot, block.Root(), block.IdentityRoot())
 	}
 

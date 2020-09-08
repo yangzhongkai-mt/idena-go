@@ -855,7 +855,11 @@ func (api *DnaApi) CallContract(ctx context.Context, args CallContractArgs) (com
 		return common.Hash{}, err
 	}
 	if args.BroadcastBlock > 0 {
-		err = api.deferredTxs.AddDeferredTx(args.From, &args.Contract, blockchain.ConvertToInt(args.Amount), tx.Payload, common.Big0, args.BroadcastBlock)
+		from := args.From
+		if from == (common.Address{}) {
+			from = api.GetCoinbaseAddr()
+		}
+		err = api.deferredTxs.AddDeferredTx(from, &args.Contract, blockchain.ConvertToInt(args.Amount), tx.Payload, common.Big0, args.BroadcastBlock)
 		return tx.Hash(), err
 	}
 	return api.baseApi.sendInternalTx(ctx, tx)
